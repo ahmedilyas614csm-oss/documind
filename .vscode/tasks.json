@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run DocuMind app",
+      "type": "shell",
+      "command": "streamlit run app.py",
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "Run tests",
+      "type": "shell",
+      "command": "pytest -v",
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "Lint with ruff",
+      "type": "shell",
+      "command": "ruff check src tests",
+      "problemMatcher": []
+    }
+  ]
+}
