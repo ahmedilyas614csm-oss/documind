@@ -23,8 +23,12 @@ class Settings(BaseSettings):
     # --- LLM (Groq) ---
     groq_api_key: str = Field(default="", description="Groq API key")
     groq_model: str = Field(
-        default="llama-3.3-70b-versatile",
-        description="Groq model name",
+        default="openai/gpt-oss-120b",
+        description="Groq model for answer generation",
+    )
+    groq_judge_model: str = Field(
+        default="openai/gpt-oss-20b",
+        description="Groq model for evaluation (JSON-only)",
     )
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     max_answer_tokens: int = Field(default=512, ge=64, le=2048)
