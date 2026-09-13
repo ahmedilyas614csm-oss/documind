@@ -16,7 +16,16 @@ Most RAG demos stop at *"it returned an answer."* DocuMind goes further: every r
 
 ## Screenshots
 
+**1. Answer view** — the LLM's grounded response with rendered math, source citations, and live metric tiles.
+
 ![Answer view with citations and metric tiles](docs/screenshot-1.png)
+
+**2. Retrieved context** — inspect exactly which chunks the LLM was given, with similarity scores.
+
+![Retrieved context chunks](docs/screenshot-3.png)
+
+**3. Evaluation dashboard** — per-question and average quality scores, exportable to CSV.
+
 ![Evaluation dashboard](docs/screenshot-2.png)
 
 ## Architecture

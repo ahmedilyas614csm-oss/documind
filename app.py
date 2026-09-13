@@ -6,6 +6,7 @@ Run with:  streamlit run app.py
 from __future__ import annotations
 
 import os
+import re
 
 # Quiet HF noise before any model loads
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
@@ -37,7 +38,25 @@ st.set_page_config(
 settings = get_settings()
 
 if "history" not in st.session_state:
-    st.session_state.history = []  # list of QueryResult
+    st.session_state.history = []  # list of (query, QueryResult, elapsed)
+
+
+# --- Helpers -----------------------------------------------------------------
+
+_BLOCK_MATH = re.compile(r"\\\[(.+?)\\\]", re.DOTALL)
+_INLINE_MATH = re.compile(r"\\\((.+?)\\\)", re.DOTALL)
+
+
+def fix_latex(text: str) -> str:
+    """Normalize LaTeX delimiters to the $ / $$ form Streamlit renders.
+
+    LLMs often emit \\[ ... \\] and \\( ... \\) (LaTeX-style). Streamlit's
+    markdown renderer only understands $...$ and $$...$$.
+    """
+    text = _BLOCK_MATH.sub(lambda m: f"\n\n$$\n{m.group(1).strip()}\n$$\n\n", text)
+    text = _INLINE_MATH.sub(lambda m: f"${m.group(1).strip()}$", text)
+    return text
+
 
 # --- Sidebar -----------------------------------------------------------------
 
@@ -110,16 +129,17 @@ if query:
             st.error(f"Something went wrong: {e}")
             st.stop()
 
-# --- Render history ----------------------------------------------------------
+# --- Render history (newest first) -------------------------------------------
 
 for q, result, elapsed in reversed(st.session_state.history):
     with st.chat_message("user"):
         st.write(q)
 
     with st.chat_message("assistant"):
-        st.markdown(result.answer.text)
+        # Answer — with LaTeX delimiters normalized
+        st.markdown(fix_latex(result.answer.text))
 
-        # Citations row
+        # Citation chips
         if result.answer.citations:
             st.markdown("**Sources**")
             cols = st.columns(min(4, len(result.answer.citations)))
@@ -131,24 +151,37 @@ for q, result, elapsed in reversed(st.session_state.history):
                         unsafe_allow_html=True,
                     )
 
+        # Retrieved chunks — expandable per source
+        if result.answer.citations and result.answer.contexts:
+            with st.expander(
+                f"📄 Retrieved chunks ({len(result.answer.contexts)})",
+                expanded=False,
+            ):
+                for i, (cite, text) in enumerate(
+                    zip(result.answer.citations, result.answer.contexts), 1
+                ):
+                    st.markdown(
+                        f"**[{i}] {cite['source']} p.{cite['page']}** · score `{cite['score']}`"
+                    )
+                    st.text(text[:2000] + ("..." if len(text) > 2000 else ""))
+                    st.divider()
+
         # Metrics
         ev = result.evaluation
-        if ev.faithfulness == ev.faithfulness and ev.faithfulness >= 0:  # not NaN, not failed
+        if (
+            ev.faithfulness == ev.faithfulness  # not NaN
+            and ev.faithfulness >= 0  # not a judge failure
+        ):
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Faithfulness", f"{ev.faithfulness:.2f}")
             m2.metric("Answer relevance", f"{ev.answer_relevance:.2f}")
             m3.metric("Context precision", f"{ev.context_precision:.2f}")
-            m4.metric("Contexts used", f"{result.contexts_used}/{result.contexts_total}")
+            m4.metric(
+                "Contexts used",
+                f"{result.contexts_used}/{result.contexts_total}",
+            )
 
         st.caption(f"⏱ {elapsed:.2f}s · judge `{ev.judge_model}`")
-
-        with st.expander("Retrieved context"):
-            for i, (cite, text) in enumerate(
-                zip(result.answer.citations, result.answer.contexts), 1
-            ):
-                st.markdown(f"**[{i}] {cite['source']} p.{cite['page']}**  · score {cite['score']}")
-                st.text(text[:1500] + ("..." if len(text) > 1500 else ""))
-                st.divider()
 
 # --- Dashboard ---------------------------------------------------------------
 
@@ -157,15 +190,15 @@ if st.session_state.history:
     st.subheader("📊 Evaluation dashboard")
 
     rows = []
-    for q, r, _ in st.session_state.history:
+    for q, r, t in st.session_state.history:
         ev = r.evaluation
         rows.append(
             {
                 "Question": q[:60] + ("..." if len(q) > 60 else ""),
-                "Faithfulness": ev.faithfulness if ev.faithfulness >= 0 else None,
+                "Faithfulness": (ev.faithfulness if ev.faithfulness >= 0 else None),
                 "Answer relevance": ev.answer_relevance,
                 "Context precision": ev.context_precision,
-                "Latency (s)": _,
+                "Latency (s)": round(t, 2),
             }
         )
     df = pd.DataFrame(rows)
@@ -174,7 +207,7 @@ if st.session_state.history:
 
     with col_a:
         st.markdown("**Per-question metrics**")
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
 
     with col_b:
         st.markdown("**Average scores**")
@@ -196,13 +229,12 @@ if st.session_state.history:
             height=300,
             margin=dict(l=10, r=10, t=10, b=10),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
-    if st.button("Download history as CSV"):
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "Click to download",
-            csv,
-            file_name="documind_eval.csv",
-            mime="text/csv",
-        )
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download history as CSV",
+        csv,
+        file_name="documind_eval.csv",
+        mime="text/csv",
+    )

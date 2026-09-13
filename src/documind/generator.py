@@ -28,6 +28,13 @@ Answer the user's question using ONLY the provided context.
 If the context does not contain the answer, say "I don't have enough information to answer that."
 Always cite your sources by referencing the source number, e.g. [Source 1].
 
+MATH FORMATTING RULES (important):
+- For inline math, use single dollar signs: $E = mc^2$
+- For display/block math, use double dollar signs on their own line:
+  $$\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V$$
+- NEVER use \\[ ... \\] or \\( ... \\) delimiters.
+- NEVER wrap the whole answer in a single math block.
+
 Be concise and accurate. Do not make up information."""
 
 
